@@ -1,0 +1,30 @@
+#!/bin/bash
+if [ $# -ne 1 ]; then
+    echo "You need to provide the name of a file. Exiting."
+    exit 1
+fi
+if [ ! -r "$1" ]; then
+    echo "File [$1] does not exists or is not readable. Exiting."
+    exit 1
+fi
+GPG=$(which gpg)
+if [ ! -x "$GPG" ]; then
+    echo "GPG not installed, but required. Exiting."
+    exit 1
+fi
+BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ENC_PATH="$BASE_PATH/.enc-env"
+PUB_KEY="$BASE_PATH/GPG/GonzaloAlvarez-MasterGPG-pubkey.pem"
+if [ ! -r "$PUB_KEY" ]; then
+    echo "Public Key [$PUB_KEY] not found. Unable to encrypt"
+    exit 1
+fi
+rm -Rf "$ENC_PATH" 2>/dev/null
+mkdir -p "$ENC_PATH"
+GPG_CMD="$GPG --home $ENC_PATH"
+$GPG_CMD --import "$PUB_KEY"
+RECIPIENT_ID=$($GPG_CMD --batch --with-colons "$PUB_KEY" | head -n1 | cut -d: -f5)
+INPUT_FILE="$1"
+ENCRYPTED_FILE="$BASE_PATH/$(basename "$INPUT_FILE").enc"
+$GPG_CMD --recipient "$RECIPIENT_ID" --armor --output "$ENCRYPTED_FILE" --encrypt "$INPUT_FILE"
+rm -Rf "$ENC_PATH" 2>/dev/null

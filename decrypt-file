@@ -1,0 +1,34 @@
+#!/bin/bash
+if [ $# -ne 1 ]; then
+    echo "You need to provide the name of a file. Exiting."
+    exit 1
+fi
+if [ ! -r "$1" ]; then
+    echo "File [$1] does not exists or is not readable. Exiting."
+    exit 1
+fi
+GPG=$(which gpg)
+if [ ! -x "$GPG" ]; then
+    echo "GPG not installed, but required. Exiting."
+    exit 1
+fi
+BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ENC_PATH="$BASE_PATH/.enc-env"
+rm -Rf "$ENC_PATH" 2>/dev/null
+mkdir -p "$ENC_PATH"
+chmod 700 "$ENC_PATH"
+GPG_CMD="$GPG -q --home $ENC_PATH"
+VIM="$(which vim)"
+VIM_CMD="$VIM -u NONE --cmd \"set statusline=PrivateKey\" --cmd \"set paste\" --cmd \"set nocompatible\" +start"
+PRIVATE_KEY="$ENC_PATH/PrivateKey.pem"
+eval "$VIM_CMD $PRIVATE_KEY"
+chmod 600 "$PRIVATE_KEY"
+$GPG_CMD --import "$PRIVATE_KEY"
+INPUT_FILE="$1"
+INPUT_FILE_EXT="${INPUT_FILE##*.}"
+INPUT_FILE_NAME="${INPUT_FILE%.*}"
+if [ "$INPUT_FILE_EXT" == "enc" ]; then
+    OUTPUT_ARG="--output $INPUT_FILE_NAME"
+fi
+$GPG_CMD $OUTPUT_ARG --decrypt "$INPUT_FILE"
+rm -Rf "$ENC_PATH" 2>/dev/null
