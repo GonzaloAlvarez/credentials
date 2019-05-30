@@ -1,0 +1,16 @@
+#!/bin/bash
+source ./crypt.sh
+
+BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+KEY_ID=$(< "$BASE_PATH/GPG/GonzaloAlvarez-MasterGPG-pubkey.keyid")
+
+QUIET=1
+GPG_HOME="$(mktemp -d)"
+init_gpg
+import_yk_publickey
+echo -n "alias ykgpg='$GPG_CMD';"
+echo -n "export GPG_HOME=\"$GPG_HOME\";"
+echo -n "export GPG_KEY_ID=\"$KEY_ID\";"
+echo -n "alias ykencrypt='$GPG_CMD --armor --encrypt --recipient $KEY_ID';"
+echo -n "alias ykdecrypt='$GPG_CMD --armor --decrypt';"
+echo -n "alias ykgenpass='$GPG_CMD --armor --gen-random 1';"

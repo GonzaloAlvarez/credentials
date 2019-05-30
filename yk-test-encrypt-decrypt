@@ -1,0 +1,19 @@
+#!/bin/bash
+
+source ./crypt.sh
+
+BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+KEY_ID=$(< "$BASE_PATH/GPG/GonzaloAlvarez-MasterGPG-pubkey.keyid")
+
+trap clean EXIT
+
+init_gpg
+import_yk_publickey
+$GPG_CMD --card-status
+$GPG_CMD --list-keys
+$GPG_CMD --list-secret-keys
+TMP_FILE="$(mktemp -d)/encrypted.asc"
+echo "Encrypting to [$TMP_FILE]"
+echo "this is a test" | $GPG_CMD --encrypt --armor --recipient "$KEY_ID" --output "$TMP_FILE"
+$GPG_CMD --decrypt --armor "$TMP_FILE"
+clean

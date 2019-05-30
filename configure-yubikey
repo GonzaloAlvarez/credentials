@@ -1,0 +1,20 @@
+#!/bin/bash
+
+source ./crypt.sh
+
+trap clean EXIT
+
+init_gpg
+if yes_or_no "Would you like to configure the Yubikey Information"; then
+	read -p "First name: " GIVENNAME
+	read -p "Last name: " SURNAME
+	read -p "Email: " EMAIL
+	PUBLIC_KEY_URL="https://raw.githubusercontent.com/GonzaloAlvarez/credentials/master/GPG/GonzaloAlvarez-MasterGPG-pubkey.pem"
+	SEX="M"
+	update_cardinfo
+	$GPG_CMD --card-status
+fi
+
+$GPG_CMD --card-edit
+
+clean

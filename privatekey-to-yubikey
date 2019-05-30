@@ -1,0 +1,17 @@
+#!/bin/bash
+
+source ./crypt.sh
+
+trap clean EXIT
+
+init_gpg
+import_publickey
+read -n 1 -s -r -p "Public key imported. Press any key to continue..."
+import_privatekey
+read -n 1 -s -r -p "Private key imported. Press any key to continue..."
+list_keys
+upload_keys
+generate_subkeys
+move_keys_to_card
+restart_agent
+clean
