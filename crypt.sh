@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export GPG_TTY=$(tty)
-
+export VERBOSITY=4
 
 function yes_or_no {
     while true; do
@@ -13,10 +13,36 @@ function yes_or_no {
     done
 }
 
+function _info {
+    if [ $VERBOSITY -ge 3 ]; then
+        echo -e -n "[\033[1m\033[32mINFO\033[0m] "
+        echo "$@"
+    fi
+}
+
 function clean {
-    BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    GNUPGHOME="$BASE_PATH/.enc-env"
-    rm -Rf "$GNUPGHOME" 2>/dev/null
+    if [ -d "$GNUPGHOME" ]; then
+        _info "Cleaning up temporary path [$GNUPGHOME]"
+        rm -Rf "$GNUPGHOME" 2>/dev/null
+    fi
+}
+
+function _fatal {
+    echo -e -n "[\033[1m\033[31mFATAL\033[0m] "
+    if [ "$1" ]; then
+        echo "$1"
+    else
+        echo "Error has occured"
+    fi
+    clean
+    exit 1
+}
+
+function _warn {
+    if [ $VERBOSITY -ge 2 ]; then
+        echo -e -n "[\033[1m\033[33mWARN\033[0m] "
+        echo "$@"
+    fi
 }
 
 function input_privatekey {
@@ -30,9 +56,11 @@ function input_privatekey {
 restart_agent(){
 	# Restart the gpg agent.
 	# shellcheck disable=SC2046
+    _info "Killing existing agents"
 	kill -9 $(ps -A | grep -m1 scdaemon | awk '{print $1}') >/dev/null 2>&1 || true
 	# shellcheck disable=SC2046
 	kill -9 $(ps -A | grep -m1 gpg-agent | awk '{print $1}') >/dev/null 2>&1 || true
+    _info "Starting new agents"
 	gpg-connect-agent /bye >/dev/null 2>&1
 	gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1
 }
@@ -40,21 +68,20 @@ restart_agent(){
 function init_gpg {
     clean
     GPG=$(which gpg)
-    if [ ! -x "$GPG" ]; then
-        echo "GPG not installed, but required. Exiting."
-        exit 1
-    fi
+    [[ -x "$GPG" ]] || _fatal "gpg not installed, but required"
     export GPG
     PINENTRY="$(which pinentry)"
-    BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    export GNUPGHOME="${GPG_HOME:-"$BASE_PATH/.enc-env"}"
-    rm -Rf "$GNUPGHOME" 2>/dev/null
+    [[ -x "$PINENTRY" ]] || _fatal "pinentry not installed, but required"
+
+    TEMP_FOLDER="$(mktemp -d)"
+    export GNUPGHOME="${GPG_HOME:-"$TEMP_FOLDER"}/.enc-env"
+    _info "Creating folder on [$GNUPGHOME]"
     mkdir -p "$GNUPGHOME"
     chmod 700 "$GNUPGHOME"
     export GPG_CMD="$GPG -q --home $GNUPGHOME"
 
 	# Create the gpg config file.
-	[[ $QUIET == 1 ]] || echo "Setting up gpg.conf..."
+	_info "Setting up gpg.conf..."
 	cat <<-EOF > "${GNUPGHOME}/gpg.conf"
 	use-agent
 	personal-cipher-preferences AES256 AES192 AES CAST5
@@ -73,7 +100,7 @@ function init_gpg {
 	with-fingerprint
 	EOF
 
-	[[ $QUIET == 1 ]] || echo "Setting up gpg-agent.conf..."
+	_info "Setting up gpg-agent.conf..."
 	cat <<-EOF > "${GNUPGHOME}/gpg-agent.conf"
 	pinentry-program ${PINENTRY}
 	enable-ssh-support
@@ -82,6 +109,7 @@ function init_gpg {
 	max-cache-ttl 7200
 	EOF
 
+    export SSH_AUTH_SOCK="$GNUPGHOME/S.gpg-agent.ssh"
     restart_agent
 }
 
@@ -91,14 +119,30 @@ function import_publickey {
     $GPG_CMD --import "$PUBLICKEY_PATH"
 }
 
+function yubikey_init {
+    $GPG_CMD --no-tty --card-status -q --batch 2>&1 >/dev/null
+    if [ $? -ne 0 ]; then
+        _fatal "Yubikey not inserted or not working. Try removing and inserting again."
+    fi
+    _info "Yubikey inserted and working properly"
+}
+
 function import_yk_publickey {
     BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     KEY_ID=$(< "$BASE_PATH/GPG/GonzaloAlvarez-MasterGPG-pubkey.keyid")
 
+    yubikey_init
+
+    _info "Trying to retrieve key from the Internet"
     echo "admin"$'\n'"fetch"$'\n'quit$'\n' | $GPG_CMD -q --card-edit --expert --batch --display-charset utf-8 --no-tty --command-fd 0 2>/dev/null
-    [[ $? -eq 0 ]] || exit 1
+    KEY_LIST_OUTPUT="$($GPG_CMD -k --batch | tr -d ' ' | grep "$KEY_ID" | head -n 1)"
+    if [ "${#KEY_LIST_OUTPUT}" -le 0 ]; then
+        _warn "Cannot retrieve from Internet. Falling back to less secure local key"
+        import_publickey
+    fi
+    _info "Trusting key"
     echo "trust"$'\n'5$'\n'y$'\n'quit$'\n' | $GPG_CMD -q --expert --batch --display-charset utf-8 --command-fd 0 --no-tty --edit-key "$KEY_ID" 
-    $GPG_CMD -q --batch --expert --no-tty --card-status >/dev/null 2>&1
+    [[ $? -eq 0 ]] || _fail "Cannot trust the key with ID [$KEY_ID]"
 }
 
 function import_privatekey {

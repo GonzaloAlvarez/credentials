@@ -1,0 +1,85 @@
+#!/bin/bash
+source ./crypt.sh
+BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+KEY_ID="$(< "$BASE_PATH/GPG/GonzaloAlvarez-MasterGPG-pubkey.keyid")"
+CURL="$(which curl)"
+
+function ykg_init {
+
+    export GPG_HOME="$(mktemp -d)"
+
+    init_gpg
+    import_yk_publickey
+}
+
+function ykg_clean {
+    clean
+}
+
+function ykg_encrypt {
+    _info "Encrypting file [$1] and storing it in [$2]"
+    $GPG_CMD --armor --encrypt --recipient $KEY_ID -o "$2" "$1"
+    [[ $? -eq 0 ]] || _fatal "Encryption failed"
+    _info "Encryption completed"
+}
+
+function ykg_decrypt {
+    _info "Decrypting file [$1] and storing result in [$2]"
+    $GPG_CMD --armor --decrypt -o "$2" "$1"
+    [[ $? -eq 0 ]] || _fatal "Decryption failed"
+    _info "Decryption completed"
+}
+
+function ykg_gpg {
+    _info "Launching GPG with parameters [$@]"
+    $GPG_CMD $@
+    [[ $? -eq 0 ]] | _fatal "Operation failed"
+    _info "Operation successful"
+}
+
+if [ "$1" == "-q" ]; then
+    VERBOSITY=0
+    shift
+fi
+
+if [ "$1" == "enc" ]; then
+    ykg_init
+    ykg_encrypt "$2" "$3"
+    ykg_clean
+elif [ "$1" == "dec" ]; then
+    ykg_init
+    ykg_decrypt "$2" "$3"
+    ykg_clean
+elif [ "$1" == "gpg" ]; then
+    ykg_init
+    shift
+    ykg_gpg $@
+    ykg_clean
+elif [ "$1" == "sshkey" ]; then
+    ykg_init
+    ssh-add -L
+    ykg_clean
+elif [ "$1" == "start" ]; then
+    ykg_init
+    JSON_ATTRIBUTES=$(cat <<EOT
+{
+    "gpghome": "$GNUPGHOME",
+    "home": "$BASE_PATH",
+    "sshkey": "$(ssh-add -L)",
+    "sshsock": "$SSH_AUTH_SOCK"
+}
+EOT
+)
+    _info "Starting background server"
+    $CURL -X POST -o /dev/null -s http://127.0.0.1:12116/kill_server 2>&1 >/dev/null
+    $BASE_PATH/pyykg.py "$JSON_ATTRIBUTES"
+    [ $? -eq 0 ] || _fatal "Failed to start server"
+    _info "Background server started successfully"
+elif [ "$1" == "stop" ]; then
+    export GNUPGHOME="$(curl -s -o - http://127.0.0.1:12116/gpghome)"
+    clean
+    _info "Killing background server"
+    $CURL -X POST -o /dev/null -s http://127.0.0.1:12116/kill_server 2>&1 >/dev/null
+elif [ "$1" == "keyid" ]; then
+    echo "$KEY_ID"
+fi
