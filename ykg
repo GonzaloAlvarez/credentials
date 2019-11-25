@@ -56,9 +56,9 @@ elif [ "$1" == "gpg" ]; then
     ykg_gpg $@
     ykg_clean
 elif [ "$1" == "sshkey" ]; then
-    ykg_init
-    ssh-add -L
-    ykg_clean
+    curl -s -o - http://127.0.0.1:12116/sshkey
+elif [ "$1" == "sshsock" ]; then
+    curl -s -o - http://127.0.0.1:12116/sshsock
 elif [ "$1" == "start" ]; then
     ykg_init
     JSON_ATTRIBUTES=$(cat <<EOT

@@ -61,7 +61,7 @@ restart_agent(){
 	# shellcheck disable=SC2046
 	kill -9 $(ps -A | grep -m1 gpg-agent | awk '{print $1}') >/dev/null 2>&1 || true
     _info "Starting new agents"
-	gpg-connect-agent /bye >/dev/null 2>&1
+    eval "$(gpg-agent --daemon --quiet --log-file ${GNUPGHOME}/.gpg-agent.log --enable-ssh-support)"
 	gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1
 }
 
@@ -104,7 +104,6 @@ function init_gpg {
 	cat <<-EOF > "${GNUPGHOME}/gpg-agent.conf"
 	pinentry-program ${PINENTRY}
 	enable-ssh-support
-	use-standard-socket
 	default-cache-ttl 600
 	max-cache-ttl 7200
 	EOF
