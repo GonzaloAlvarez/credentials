@@ -1,11 +1,13 @@
 #!/bin/bash
-source ./crypt.sh
 BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+source "$BASE_PATH/scripts/cli.sh"
+source ./crypt.sh
+
 KEY_ID="$(< "$BASE_PATH/GPG/GonzaloAlvarez-MasterGPG-pubkey.keyid")"
 CURL="$(which curl)"
 
 function ykg_init {
-
     export GPG_HOME="$(mktemp -d)"
 
     init_gpg
@@ -43,9 +45,13 @@ if [ "$1" == "-q" ]; then
 fi
 
 if [ "$1" == "enc" ]; then
-    ykg_init
-    ykg_encrypt "$2" "$3"
-    ykg_clean
+    _GPG_HOME="$(curl -s -o - http://127.0.0.1:12116/gpghome)"
+    if [ "$_GPG_HOME" ]; then
+        $(which gpg) -q --home "$_GPG_HOME" --armor --encrypt --recipient "$KEY_ID" -o "$3" "$2"
+    fi
+    #ykg_init
+    #ykg_encrypt "$2" "$3"
+    #ykg_clean
 elif [ "$1" == "dec" ]; then
     ykg_init
     ykg_decrypt "$2" "$3"
@@ -59,6 +65,15 @@ elif [ "$1" == "sshkey" ]; then
     curl -s -o - http://127.0.0.1:12116/sshkey
 elif [ "$1" == "sshsock" ]; then
     curl -s -o - http://127.0.0.1:12116/sshsock
+elif [ "$1" == "status" ]; then
+    _GPG_HOME="$(curl -s -o - http://127.0.0.1:12116/gpghome)"
+    if [ "$_GPG_HOME" ]; then
+        _info "GPG running on [$(curl -s -o - http://127.0.0.1:12116/gpghome)]"
+        _info "Yubikey Status"
+        $(which gpg) --home "$_GPG_HOME" --card-status
+    else
+        _warn "Service not running"
+    fi
 elif [ "$1" == "start" ]; then
     ykg_init
     JSON_ATTRIBUTES=$(cat <<EOT
