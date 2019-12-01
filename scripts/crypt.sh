@@ -76,7 +76,6 @@ function init_gpg {
 }
 
 function import_publickey {
-    BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     PUBLICKEY_PATH="$BASE_PATH/GPG/GonzaloAlvarez-MasterGPG-pubkey.pem"
     $GPG_CMD --import "$PUBLICKEY_PATH"
 }
@@ -90,7 +89,6 @@ function yubikey_init {
 }
 
 function import_yk_publickey {
-    BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     KEY_ID=$(< "$BASE_PATH/GPG/GonzaloAlvarez-MasterGPG-pubkey.keyid")
 
     yubikey_init
