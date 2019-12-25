@@ -15,6 +15,12 @@ except ImportError:
 
 DEFAULT_SERVER_PORT = 12116
 
+class WeakHttpServer(HTTPServer):
+    allow_reuse_address = True
+    def finish_request(self, request, client_address):
+        request.settimeout(5) # Really short timeout as there is only 1 thread
+        HTTPServer.finish_request(self, request, client_address)
+
 class S(BaseHTTPRequestHandler):
     def _set_headers(self):
         self.send_response(200)
@@ -41,10 +47,11 @@ class S(BaseHTTPRequestHandler):
             thread.start_new_thread(kill_me_please, (httpd,))
             self.send_error(500)
         
-def run(server_class=HTTPServer, handler_class=S, port=DEFAULT_SERVER_PORT):
+def run( handler_class=S, port=DEFAULT_SERVER_PORT):
     global httpd
     server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
+    httpd = WeakHttpServer(server_address, handler_class)
+
     print 'Starting httpd...'
     try:
         httpd.serve_forever()
@@ -60,5 +67,6 @@ if __name__ == "__main__":
         context = json.loads(argv[1])
     context['status'] = "Running"
 
+    #with daemon.DaemonContext(stdout = open('/Users/gonalv/out.log', 'w'), stderr=open('/Users/gonalv/err.log', 'w')):
     with daemon.DaemonContext():
         run()

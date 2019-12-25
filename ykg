@@ -13,7 +13,7 @@ if [ "$1" == "-q" ]; then
 fi
 
 if [ "$1" == "enc" ]; then
-    _GPG_HOME="$(curl -s -o - http://127.0.0.1:12116/gpghome)"
+    _GPG_HOME="$($CURL -s -o - http://127.0.0.1:12116/gpghome)"
     if [ "$_GPG_HOME" ]; then
         _info "Encrypting file [$1] and storing it in [$2]"
         $(which gpg) -q --home "$_GPG_HOME" --armor --encrypt --recipient "$KEY_ID" -o "$3" "$2"
@@ -21,7 +21,7 @@ if [ "$1" == "enc" ]; then
         _fatal "Server not running"
     fi
 elif [ "$1" == "dec" ]; then
-    _GPG_HOME="$(curl -s -o - http://127.0.0.1:12116/gpghome)"
+    _GPG_HOME="$($CURL -s -o - http://127.0.0.1:12116/gpghome)"
     if [ "$_GPG_HOME" ]; then
         _info "Decrypting file [$1] and storing result in [$2]"
         $(which gpg) -q --home "$_GPG_HOME" --armor --decrypt -o "$3" "$2"
@@ -29,20 +29,20 @@ elif [ "$1" == "dec" ]; then
         _fatal "Server not running"
     fi
 elif [ "$1" == "gpg" ]; then
-    _GPG_HOME="$(curl -s -o - http://127.0.0.1:12116/gpghome)"
+    _GPG_HOME="$($CURL -s -o - http://127.0.0.1:12116/gpghome)"
     if [ "$_GPG_HOME" ]; then
         $(which gpg) -q --home "$_GPG_HOME" $@
     else
         _fatal "Server not running"
     fi
 elif [ "$1" == "sshkey" ]; then
-    curl -s -o - http://127.0.0.1:12116/sshkey
+    $CURL -s -o - http://127.0.0.1:12116/sshkey
 elif [ "$1" == "sshsock" ]; then
-    curl -s -o - http://127.0.0.1:12116/sshsock
+    $CURL -s -o - http://127.0.0.1:12116/sshsock
 elif [ "$1" == "status" ]; then
-    _GPG_HOME="$(curl -s -o - http://127.0.0.1:12116/gpghome)"
+    _GPG_HOME="$($CURL -s -o - http://127.0.0.1:12116/gpghome)"
     if [ "$_GPG_HOME" ]; then
-        _info "GPG running on [$(curl -s -o - http://127.0.0.1:12116/gpghome)]"
+        _info "GPG running on [$($CURL -s -o - http://127.0.0.1:12116/gpghome)]"
         _info "Yubikey Status"
         $(which gpg) --home "$_GPG_HOME" --card-status
     else
@@ -65,9 +65,15 @@ EOT
     $CURL -X POST -o /dev/null -s http://127.0.0.1:12116/kill_server 2>&1 >/dev/null
     $BASE_PATH/pyykg.py "$JSON_ATTRIBUTES"
     [ $? -eq 0 ] || _fatal "Failed to start server"
-    _info "Background server started successfully"
+    sleep 1
+    _GPG_HOME="$($CURL -s -o - http://127.0.0.1:12116/gpghome)"
+    if [ "$_GPG_HOME" ]; then
+        _info "Background server started successfully"
+    else
+        _fatal "Failed to start the server"
+    fi
 elif [ "$1" == "stop" ]; then
-    export GNUPGHOME="$(curl -s -o - http://127.0.0.1:12116/gpghome)"
+    export GNUPGHOME="$($CURL -s -o - http://127.0.0.1:12116/gpghome)"
     clean
     _info "Killing background server"
     $CURL -X POST -o /dev/null -s http://127.0.0.1:12116/kill_server 2>&1 >/dev/null
