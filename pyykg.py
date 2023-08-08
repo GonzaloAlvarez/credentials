@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """launch small http server
 """
 
-import thread
+import threading
 import json
 import daemon
 
@@ -29,30 +29,33 @@ class S(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self._set_headers()
+        print('here')
+        print(context)
         attribute = self.path[1:]
         try:
-            self.wfile.write("{}".format(context[attribute]))
+            self.wfile.write(bytes("{}".format(context[attribute]), 'utf-8'))
         except:
             self.wfile.write("")
             pass
 
     def do_HEAD(self):
         self._set_headers()
-        
+
     def do_POST(self):
         if self.path.startswith('/kill_server'):
-            print "Server is going down, run it again manually!"
+            print("Server is going down, run it again manually!")
             def kill_me_please(server):
                 server.shutdown()
+            threading.Thread(target=kill_me_please, args=(httpd,)).start()
             thread.start_new_thread(kill_me_please, (httpd,))
             self.send_error(500)
-        
+
 def run( handler_class=S, port=DEFAULT_SERVER_PORT):
     global httpd
     server_address = ('', port)
     httpd = WeakHttpServer(server_address, handler_class)
 
-    print 'Starting httpd...'
+    print("Starting httpd...")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
@@ -62,11 +65,12 @@ def run( handler_class=S, port=DEFAULT_SERVER_PORT):
 if __name__ == "__main__":
     from sys import argv
     global context
+    context={}
     if len(argv) == 2:
         import json
         context = json.loads(argv[1])
     context['status'] = "Running"
 
-    #with daemon.DaemonContext(stdout = open('/Users/gonalv/out.log', 'w'), stderr=open('/Users/gonalv/err.log', 'w')):
-    with daemon.DaemonContext():
+    with daemon.DaemonContext(stdout = open('/home/local/ANT/gonalv/out.log', 'w'), stderr=open('/home/local/ANT/gonalv/err.log', 'w')):
+    #with daemon.DaemonContext():
         run()
